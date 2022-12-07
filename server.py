@@ -283,6 +283,7 @@ class Handler(pb2_grpc.RaftNodeServicer):
             return
         
         key, val = request.key, request.val
+        print(key, val) # working
         # TO DO
         return pb2.NoArgs()
 
@@ -292,7 +293,9 @@ class Handler(pb2_grpc.RaftNodeServicer):
             return
 
         # TO DO
+        key = request.key_val
         val = None
+        print(key) # working
         reply = {'key_val': val}
         return pb2.GetValArg(**reply)
 

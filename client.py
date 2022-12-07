@@ -42,7 +42,7 @@ def cmd_getval(key, state):
     if err_msg:
         return (err_msg, state1)
     resp = state1['stub'].GetVal(pb2.GetValArg(key_val=key))
-    return f"{resp.key_val}", state1    
+    return f"{resp.key_val}", state1
 
 def exec_cmd(line, state):
     parts = line.split()

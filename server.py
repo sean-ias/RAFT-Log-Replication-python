@@ -138,7 +138,6 @@ def request_vote_worker_thread(id_to_request):
     (_, _, stub) = state['nodes'][id_to_request]
     try:
         resp = stub.RequestVote(pb2.NodeArgs(term=state['term'], node_id=state['id']), timeout=0.1)
-        # print(log_prefix() + f"response: {resp}")
 
         with state_lock:
             # if requested node replied for too long,
@@ -148,19 +147,17 @@ def request_vote_worker_thread(id_to_request):
                 return
 
             if state['term'] < resp.term:
-                # print(log_prefix() + f"received a vote, term bigger than mine: {resp.term}")
                 state['term'] = resp.term
                 become_a_follower()
                 reset_election_campaign_timer()
             elif resp.result:
-                # print(log_prefix() + f"received a vote from {id_to_request}")
                 state['vote_count'] += 1
         
         # got enough votes, no need to wait for the end of the timeout
         if has_enough_votes():
             finalize_election()
     except grpc.RpcError:
-        pass
+        reopen_connection(id_to_request)
 
 def election_timeout_thread():
     while not is_terminating:
@@ -205,7 +202,7 @@ def heartbeat_thread(id_to_request):
                         become_a_follower()
                 threading.Timer(HEARTBEAT_DURATION*0.001, heartbeat_events[id_to_request].set).start()
         except grpc.RpcError:
-            pass
+            reopen_connection(id_to_request)
 
 #
 # gRPC server handler
@@ -235,7 +232,6 @@ class Handler(pb2_grpc.RaftNodeServicer):
                 become_a_follower()
             if state['term'] == request.term:
                 if state['voted_for_id'] == -1:
-                    # reset_election_campaign_timer()
                     become_a_follower()
                     state['voted_for_id'] = request.node_id
                     reply = {'result': True, 'term': state['term']}
@@ -283,7 +279,7 @@ class Handler(pb2_grpc.RaftNodeServicer):
             return
         
         key, val = request.key, request.val
-        print(key, val) # working
+        print(key, val)
         # TO DO
         return pb2.NoArgs()
 
@@ -292,10 +288,10 @@ class Handler(pb2_grpc.RaftNodeServicer):
         if is_suspended:
             return
 
-        # TO DO
         key = request.key_val
+        print(key)
+        # TO DO
         val = None
-        print(key) # working
         reply = {'key_val': val}
         return pb2.GetValArg(**reply)
 
@@ -307,6 +303,14 @@ def ensure_connected(id):
         channel = grpc.insecure_channel(f"{host}:{port}")
         stub = pb2_grpc.RaftNodeStub(channel)
         state['nodes'][id] = (host, port, stub)
+
+def reopen_connection(id):
+    if id == state['id']:
+        raise "Shouldn't try to connect to itself"
+    (host, port, stub) = state['nodes'][id]
+    channel = grpc.insecure_channel(f"{host}:{port}")
+    stub = pb2_grpc.RaftNodeStub(channel)
+    state['nodes'][id] = (host, port, stub)
 
 def start_server(state):
     (ip, port, _stub) = state['nodes'][state['id']]
@@ -357,6 +361,6 @@ if __name__ == '__main__':
     [id] = sys.argv[1:]
     nodes = None
     with open("config.conf", 'r') as f:
-        line_parts = map(lambda line: line.split(),f.read().split("\n"))
+        line_parts = map(lambda line: line.split(),f.read().strip().split("\n"))
         nodes = dict([(int(p[0]), (p[1], int(p[2]), None)) for p in line_parts])
     main(int(id), nodes)

@@ -37,12 +37,12 @@ class RaftNodeStub(object):
         self.SetVal = channel.unary_unary(
                 '/RaftNode/SetVal',
                 request_serializer=raft__pb2.SetValArgs.SerializeToString,
-                response_deserializer=raft__pb2.NoArgs.FromString,
+                response_deserializer=raft__pb2.ConditionArg.FromString,
                 )
         self.GetVal = channel.unary_unary(
                 '/RaftNode/GetVal',
                 request_serializer=raft__pb2.GetValArg.SerializeToString,
-                response_deserializer=raft__pb2.GetValArg.FromString,
+                response_deserializer=raft__pb2.ValConditionArg.FromString,
                 )
 
 
@@ -111,12 +111,12 @@ def add_RaftNodeServicer_to_server(servicer, server):
             'SetVal': grpc.unary_unary_rpc_method_handler(
                     servicer.SetVal,
                     request_deserializer=raft__pb2.SetValArgs.FromString,
-                    response_serializer=raft__pb2.NoArgs.SerializeToString,
+                    response_serializer=raft__pb2.ConditionArg.SerializeToString,
             ),
             'GetVal': grpc.unary_unary_rpc_method_handler(
                     servicer.GetVal,
                     request_deserializer=raft__pb2.GetValArg.FromString,
-                    response_serializer=raft__pb2.GetValArg.SerializeToString,
+                    response_serializer=raft__pb2.ValConditionArg.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -209,7 +209,7 @@ class RaftNode(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/RaftNode/SetVal',
             raft__pb2.SetValArgs.SerializeToString,
-            raft__pb2.NoArgs.FromString,
+            raft__pb2.ConditionArg.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -226,6 +226,6 @@ class RaftNode(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/RaftNode/GetVal',
             raft__pb2.GetValArg.SerializeToString,
-            raft__pb2.GetValArg.FromString,
+            raft__pb2.ValConditionArg.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

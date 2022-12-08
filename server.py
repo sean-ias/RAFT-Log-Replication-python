@@ -193,6 +193,18 @@ def election_timeout_thread():
             # if somehow we got here while being a leader,
             # then do nothing
 
+def check_max_index(N):
+    required_votes = (len(state['nodes'])//2) + 1
+    return sum(map(lambda x : x >= N, state['matchIndex'])) >= required_votes
+
+def update_commit_index():
+    for N in range(len(state['logs']), 0, -1):
+        if N <= state['commitIndex']:
+            break
+        if state['logs'][N - 1].term == state['term'] and check_max_index(N):
+            state['commitIndex'] = N
+            break
+
 def heartbeat_thread(id_to_request):
     while not is_terminating:
         try:
@@ -204,14 +216,29 @@ def heartbeat_thread(id_to_request):
 
                 ensure_connected(id_to_request)
                 (_, _, stub) = state['nodes'][id_to_request]
-                resp = stub.AppendEntries(
-                    pb2.AppendEntriesArgs(
-                        term=state['term'],
-                        leaderId=state['id'],
-                        prevLogIndex=state['lastApplied'],
-                        prevLogTerm=state['logs'][state['lastApplied'] - 1].term,
-                        entries=[],
-                        leaderCommit=state['commitIndex']), timeout=0.100)
+
+                logs_send_succeeded = True
+                while logs_send_succeeded:
+                    log_entries = []
+                    if state['commitIndex'] > state['nextIndex'][id_to_request]:
+                        log_entries = state['logs'][state['nextIndex'][id_to_request]:]
+                    resp = stub.AppendEntries(
+                        pb2.AppendEntriesArgs(
+                            term=state['term'],
+                            leaderId=state['id'],
+                            prevLogIndex=state['lastApplied'],
+                            prevLogTerm=state['logs'][state['lastApplied'] - 1].term,
+                            entries=log_entries,
+                            leaderCommit=state['commitIndex']), timeout=0.100)
+                    if len(log_entries) > 0:
+                        if resp.result:
+                            state['matchIndex'][id_to_request] = state['matchIndex'][id_to_request] + len(log_entries)
+                        elif resp.term == state['term']: # Verifying that failed NOT because of log inconsistency
+                            state['nextIndex'][id_to_request] = state['nextIndex'][id_to_request] - 1
+                            # Skipping the next line to make a retry
+                    logs_send_succeeded = False
+
+                update_commit_index()
 
                 if (state['type'] != 'leader') or is_suspended:
                     continue

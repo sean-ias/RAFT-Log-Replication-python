@@ -1,8 +1,8 @@
 syntax = "proto3";
 
 message Entry {
-        int32 term = 2;
-        string command = 3;
+        int32 term = 1;
+        string command = 2;
 }
 
 service RaftNode {
@@ -10,8 +10,8 @@ service RaftNode {
         rpc AppendEntries(AppendEntriesArgs) returns (ResultWithTerm);
         rpc GetLeader(NoArgs) returns (LeaderResp);
         rpc Suspend(DurationArgs) returns (NoArgs);
-        rpc SetVal(SetValArgs) returns (NoArgs);
-        rpc GetVal(GetValArg) returns (GetValArg);
+        rpc SetVal(SetValArgs) returns (ConditionArg);
+        rpc GetVal(GetValArg) returns (ValConditionArg);
 }
 
 message NoArgs {}
@@ -53,4 +53,13 @@ message SetValArgs {
 
 message GetValArg {
         string key_val = 1;
+}
+
+message ConditionArg {
+        bool cond = 1;
+}
+
+message ValConditionArg {
+        bool cond = 1;
+        string val = 2; 
 }

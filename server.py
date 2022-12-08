@@ -335,21 +335,42 @@ class Handler(pb2_grpc.RaftNodeServicer):
             return
         
         key, val = request.key, request.val
-        print(key, val)
-        # TO DO
-        return pb2.NoArgs()
+        c = False
+        if state['type'] == 'leader':
+            entry = {'term': state['term'], 'command': key + " " + val}
+            state['logs'].append(entry)
+            if heartbeat_events[state['leader_id']].wait(timeout=0.5):
+                if (state['type'] != 'leader') or is_suspended:
+                    c = False
+                else:
+                    state['commitIndex'] += 1
+                    c = True
+        if state['type'] == 'follower':
+            (_, _, stub) = state['nodes'][state['leader_id']]
+            try:
+                resp = stub.SetVal(pb2.SetValArgs(key=key, val=val))
+                if resp.cond:
+                    c = True
+            except Exception as e:
+                print(f"Error: {e}")
+        reply = {'cond': c}
+        return pb2.ConditionArg(**reply)
 
     def GetVal(self, request, context):
         global is_suspended
         if is_suspended:
             return
 
-        key = request.key_val
-        print(key)
-        # TO DO
-        val = None
-        reply = {'key_val': val}
-        return pb2.GetValArg(**reply)
+        key = request.key
+        c = False
+        for i in range(1, state['commitIndex'] + 1):
+            entry = state['logs'][-i]['command'].split()
+            if entry[0] == key:
+                val = entry[1]
+                c = True
+                break
+        reply = {'cond': c, 'val': val}
+        return pb2.ValConditionArg(**reply)
 
 def ensure_connected(id):
     if id == state['id']:

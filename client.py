@@ -34,15 +34,19 @@ def cmd_setval(key, val, state):
     (err_msg, state1) = ensure_connected(state)
     if err_msg:
         return (err_msg, state1)
-    state1['stub'].SetVal(pb2.SetValArgs(key=key, val=val))
-    return "", state1
+    resp = state1['stub'].SetVal(pb2.SetValArgs(key=key, val=val))
+    if resp.cond:
+        return f"Success: {val} is set in {key} key", state1
+    return f"Failure: {val} is not set in {key} key", state1
 
 def cmd_getval(key, state):
     (err_msg, state1) = ensure_connected(state)
     if err_msg:
         return (err_msg, state1)
-    resp = state1['stub'].GetVal(pb2.GetValArg(key_val=key))
-    return f"{resp.key_val}", state1
+    resp = state1['stub'].GetVal(pb2.GetValArg(key=key))
+    if resp.cond:
+        return f"{resp.val}", state1
+    return "None", state1
 
 def exec_cmd(line, state):
     parts = line.split()

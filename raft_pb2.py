@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\nraft.proto\"5\n\x05\x45ntry\x12\r\n\x05index\x18\x01 \x01(\x05\x12\x0c\n\x04term\x18\x02 \x01(\x05\x12\x0f\n\x07\x63ommand\x18\x03 \x01(\t\"\x08\n\x06NoArgs\"_\n\x0fRequestVoteArgs\x12\x0c\n\x04term\x18\x01 \x01(\x05\x12\x13\n\x0b\x63\x61ndidateId\x18\x02 \x01(\x05\x12\x14\n\x0clastLogIndex\x18\x03 \x01(\x05\x12\x13\n\x0blastLogTerm\x18\x04 \x01(\x05\"\x8d\x01\n\x11\x41ppendEntriesArgs\x12\x0c\n\x04term\x18\x01 \x01(\x05\x12\x10\n\x08leaderId\x18\x02 \x01(\x05\x12\x14\n\x0cprevLogIndex\x18\x03 \x01(\x05\x12\x13\n\x0bprevLogTerm\x18\x04 \x01(\x05\x12\x17\n\x07\x65ntries\x18\x05 \x03(\x0b\x32\x06.Entry\x12\x14\n\x0cleaderCommit\x18\x06 \x01(\x05\".\n\x0eResultWithTerm\x12\x0c\n\x04term\x18\x01 \x01(\x05\x12\x0e\n\x06result\x18\x02 \x01(\x08\" \n\x0c\x44urationArgs\x12\x10\n\x08\x64uration\x18\x01 \x01(\x05\"4\n\nLeaderResp\x12\x11\n\tleader_id\x18\x01 \x01(\x05\x12\x13\n\x0bleader_addr\x18\x02 \x01(\t\"&\n\nSetValArgs\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x0b\n\x03val\x18\x02 \x01(\t\"\x1c\n\tGetValArg\x12\x0f\n\x07key_val\x18\x01 \x01(\t2\xfa\x01\n\x08RaftNode\x12\x30\n\x0bRequestVote\x12\x10.RequestVoteArgs\x1a\x0f.ResultWithTerm\x12\x34\n\rAppendEntries\x12\x12.AppendEntriesArgs\x1a\x0f.ResultWithTerm\x12!\n\tGetLeader\x12\x07.NoArgs\x1a\x0b.LeaderResp\x12!\n\x07Suspend\x12\r.DurationArgs\x1a\x07.NoArgs\x12\x1e\n\x06SetVal\x12\x0b.SetValArgs\x1a\x07.NoArgs\x12 \n\x06GetVal\x12\n.GetValArg\x1a\n.GetValArgb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\nraft.proto\"&\n\x05\x45ntry\x12\x0c\n\x04term\x18\x02 \x01(\x05\x12\x0f\n\x07\x63ommand\x18\x03 \x01(\t\"\x08\n\x06NoArgs\"_\n\x0fRequestVoteArgs\x12\x0c\n\x04term\x18\x01 \x01(\x05\x12\x13\n\x0b\x63\x61ndidateId\x18\x02 \x01(\x05\x12\x14\n\x0clastLogIndex\x18\x03 \x01(\x05\x12\x13\n\x0blastLogTerm\x18\x04 \x01(\x05\"\x8d\x01\n\x11\x41ppendEntriesArgs\x12\x0c\n\x04term\x18\x01 \x01(\x05\x12\x10\n\x08leaderId\x18\x02 \x01(\x05\x12\x14\n\x0cprevLogIndex\x18\x03 \x01(\x05\x12\x13\n\x0bprevLogTerm\x18\x04 \x01(\x05\x12\x17\n\x07\x65ntries\x18\x05 \x03(\x0b\x32\x06.Entry\x12\x14\n\x0cleaderCommit\x18\x06 \x01(\x05\".\n\x0eResultWithTerm\x12\x0c\n\x04term\x18\x01 \x01(\x05\x12\x0e\n\x06result\x18\x02 \x01(\x08\" \n\x0c\x44urationArgs\x12\x10\n\x08\x64uration\x18\x01 \x01(\x05\"4\n\nLeaderResp\x12\x11\n\tleader_id\x18\x01 \x01(\x05\x12\x13\n\x0bleader_addr\x18\x02 \x01(\t\"&\n\nSetValArgs\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x0b\n\x03val\x18\x02 \x01(\t\"\x1c\n\tGetValArg\x12\x0f\n\x07key_val\x18\x01 \x01(\t2\xfa\x01\n\x08RaftNode\x12\x30\n\x0bRequestVote\x12\x10.RequestVoteArgs\x1a\x0f.ResultWithTerm\x12\x34\n\rAppendEntries\x12\x12.AppendEntriesArgs\x1a\x0f.ResultWithTerm\x12!\n\tGetLeader\x12\x07.NoArgs\x1a\x0b.LeaderResp\x12!\n\x07Suspend\x12\r.DurationArgs\x1a\x07.NoArgs\x12\x1e\n\x06SetVal\x12\x0b.SetValArgs\x1a\x07.NoArgs\x12 \n\x06GetVal\x12\n.GetValArg\x1a\n.GetValArgb\x06proto3')
 
 
 
@@ -95,23 +95,23 @@ if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
   _ENTRY._serialized_start=14
-  _ENTRY._serialized_end=67
-  _NOARGS._serialized_start=69
-  _NOARGS._serialized_end=77
-  _REQUESTVOTEARGS._serialized_start=79
-  _REQUESTVOTEARGS._serialized_end=174
-  _APPENDENTRIESARGS._serialized_start=177
-  _APPENDENTRIESARGS._serialized_end=318
-  _RESULTWITHTERM._serialized_start=320
-  _RESULTWITHTERM._serialized_end=366
-  _DURATIONARGS._serialized_start=368
-  _DURATIONARGS._serialized_end=400
-  _LEADERRESP._serialized_start=402
-  _LEADERRESP._serialized_end=454
-  _SETVALARGS._serialized_start=456
-  _SETVALARGS._serialized_end=494
-  _GETVALARG._serialized_start=496
-  _GETVALARG._serialized_end=524
-  _RAFTNODE._serialized_start=527
-  _RAFTNODE._serialized_end=777
+  _ENTRY._serialized_end=52
+  _NOARGS._serialized_start=54
+  _NOARGS._serialized_end=62
+  _REQUESTVOTEARGS._serialized_start=64
+  _REQUESTVOTEARGS._serialized_end=159
+  _APPENDENTRIESARGS._serialized_start=162
+  _APPENDENTRIESARGS._serialized_end=303
+  _RESULTWITHTERM._serialized_start=305
+  _RESULTWITHTERM._serialized_end=351
+  _DURATIONARGS._serialized_start=353
+  _DURATIONARGS._serialized_end=385
+  _LEADERRESP._serialized_start=387
+  _LEADERRESP._serialized_end=439
+  _SETVALARGS._serialized_start=441
+  _SETVALARGS._serialized_end=479
+  _GETVALARG._serialized_start=481
+  _GETVALARG._serialized_end=509
+  _RAFTNODE._serialized_start=512
+  _RAFTNODE._serialized_end=762
 # @@protoc_insertion_point(module_scope)

@@ -208,9 +208,9 @@ def heartbeat_thread(id_to_request):
                     pb2.AppendEntriesArgs(
                         term=state['term'],
                         leaderId=state['id'],
-                        prevLogIndex=state['matchIndex'],
-                        prevLogTerm=state['logs'][state['matchIndex'] - 1].term,
-                        entries=state['logs'],
+                        prevLogIndex=state['lastApplied'],
+                        prevLogTerm=state['logs'][state['lastApplied'] - 1].term,
+                        entries=[],
                         leaderCommit=state['commitIndex']), timeout=0.100)
 
                 if (state['type'] != 'leader') or is_suspended:
@@ -251,10 +251,9 @@ class Handler(pb2_grpc.RaftNodeServicer):
             if state['term'] < request.term:
                 state['term'] = request.term
                 become_a_follower()
-            # TODO: check if we need to use commitIndex or lastApplied for 2nd check
             if state['term'] == request.term and \
                     (request.lastLogIndex >= state['commitIndex']) and \
-                    (len(state['logs']) == 0 or state['logs'][state['commitIndex'] - 1].term <= request.lastLogTerm):
+                    (len(state['logs']) == 0 or state['logs'][request.lastLogIndex - 1].term <= request.lastLogTerm):
                 if state['voted_for_id'] == -1:
                     become_a_follower()
                     state['voted_for_id'] = request.candidateId
@@ -280,7 +279,7 @@ class Handler(pb2_grpc.RaftNodeServicer):
                     state['logs'] = state['logs'][0:request.prevLogIndex]
                 state['logs'] = state['logs'] + request.entries
                 if state['commitIndex'] < request.leaderCommit:
-                    state['commitIndex'] = min(request.leaderCommit, len(state['logs']) - 1)
+                    state['commitIndex'] = min(request.leaderCommit, len(state['logs']))
                 state['leader_id'] = request.leaderId
                 reply = {'result': True, 'term': state['term']}
             return pb2.ResultWithTerm(**reply)

@@ -151,7 +151,7 @@ def request_vote_worker_thread(id_to_request):
                 term=state['term'],
                 candidateId=state['id'],
                 lastLogIndex=state['commitIndex'],
-                lastLogTerm=state['logs'][state['commitIndex'] - 1].term), timeout=0.1)
+                lastLogTerm=(state['term'] if state['commitIndex'] == 0 else state['logs'][state['commitIndex'] - 1].term)), timeout=0.1)
 
         with state_lock:
             # if requested node replied for too long,
@@ -280,7 +280,7 @@ class Handler(pb2_grpc.RaftNodeServicer):
                 become_a_follower()
             if state['term'] == request.term and \
                     (request.lastLogIndex >= state['commitIndex']) and \
-                    (len(state['logs']) == 0 or state['logs'][request.lastLogIndex - 1].term <= request.lastLogTerm):
+                    (state['commitIndex'] == 0 or state['commitIndex'] < request.lastLogIndex or (state['logs'][request.lastLogIndex - 1].term <= request.lastLogTerm)):
                 if state['voted_for_id'] == -1:
                     become_a_follower()
                     state['voted_for_id'] = request.candidateId

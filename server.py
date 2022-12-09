@@ -35,6 +35,7 @@ state = {
     'vote_count': 0,
     'voted_for_id': -1,
     'leader_id': -1,
+    'values': {},
     # Volatile for all servers
     'commitIndex': 0,
     'lastApplied': 0,
@@ -131,6 +132,19 @@ def become_a_follower():
     # state['leader_id'] = -1
 
 #
+# value operation functions
+#
+
+def apply():
+    key, value = state['values'][state['lastApplied'] - 1].split(' ')
+    state['values'][key] = value
+
+def check_last_applied():
+    if state['commitIndex'] > state['lastApplied']:
+        state['lastApplied'] = state['lastApplied'] + 1
+        apply()
+
+#
 # hearbeats
 #
 
@@ -147,15 +161,15 @@ def request_vote_worker_thread(id_to_request):
     (_, _, stub) = state['nodes'][id_to_request]
     try:
         # We need to check if our logs have something
-        if state['lastApplied'] == 0:
+        if len(state['logs']) == 0:
             last_log_term = -1
         else:
-            last_log_term = state['logs'][state['lastApplied'] - 1].term
+            last_log_term = state['logs'][-1].term
         resp = stub.RequestVote(
             pb2.RequestVoteArgs(
                 term=state['term'],
                 candidateId=state['id'],
-                lastLogIndex=state['lastApplied'],
+                lastLogIndex=len(state['logs']),
                 lastLogTerm=last_log_term), timeout=0.1)
 
         with state_lock:
@@ -225,13 +239,15 @@ def heartbeat_thread(id_to_request):
                 logs_send_succeeded = True
                 while logs_send_succeeded:
                     log_entries = []
-                    if state['lastApplied'] > state['nextIndex'][id_to_request]:
+                    if len(state['logs']) > state['nextIndex'][id_to_request]:
                         log_entries = state['logs'][state['nextIndex'][id_to_request]:]
                     # We need to check if our logs actually have something
-                    if state['lastApplied'] == 0:
+                    if len(state['logs']) == 0:
                         prev_log_term = -1
                     else:
-                        prev_log_term = state['logs'][state['lastApplied'] - 1].term
+                        prev_log_term = state['logs'][-1].term
+                    # TODO:
+                    #  Check if in `prevLogIndex` we should have lastApplied, len(logs) or commitIndex
                     resp = stub.AppendEntries(
                         pb2.AppendEntriesArgs(
                             term=state['term'],
@@ -290,8 +306,8 @@ class Handler(pb2_grpc.RaftNodeServicer):
                 become_a_follower()
             if state['term'] == request.term:
                 if state['voted_for_id'] == -1 and \
-                    (request.lastLogIndex >= state['lastApplied']) and \
-                    (state['lastApplied'] == 0 or state['lastApplied'] < request.lastLogIndex or
+                    request.lastLogIndex >= len(state['logs']) and \
+                    (len(state['logs']) == 0 or len(state['logs']) < request.lastLogIndex or
                         state['logs'][request.lastLogIndex - 1].term <= request.lastLogTerm):
                     become_a_follower()
                     state['voted_for_id'] = request.candidateId
@@ -312,13 +328,13 @@ class Handler(pb2_grpc.RaftNodeServicer):
                 state['term'] = request.term
                 become_a_follower()
             if state['term'] == request.term and \
-                    state['lastApplied'] >= request.prevLogIndex:
-                if state['lastApplied'] > 0 and state['logs'][request.prevLogIndex - 1].term != request.prevLogTerm:
+                    (len(state['logs']) == 0 or len(state['logs']) >= request.prevLogIndex):
+                # TODO: Double check if need to traverse through all of them
+                if len(state['logs']) > 0 and state['logs'][request.prevLogIndex - 1].term != request.prevLogTerm:
                     state['logs'] = state['logs'][0:request.prevLogIndex]
                 state['logs'] = state['logs'] + list(request.entries)
                 if state['commitIndex'] < request.leaderCommit:
                     state['commitIndex'] = min(request.leaderCommit, len(state['logs']))
-                state['lastApplied'] = len(state['logs'])
                 state['leader_id'] = request.leaderId
                 reply = {'result': True, 'term': state['term']}
             return pb2.ResultWithTerm(**reply)
@@ -345,18 +361,16 @@ class Handler(pb2_grpc.RaftNodeServicer):
         global is_suspended
         if is_suspended:
             return
-        
+
         key, val = request.key, request.val
         c = False
         if state['type'] == 'leader':
-            entry = {'term': state['term'], 'command': key + " " + val}
+            entry = pb2.Entry(term=state['term'], command=key + " " + val)
             state['logs'].append(entry)
-            state['lastApplied'] += 1
             if heartbeat_events[state['leader_id']].wait(timeout=0.5):
                 if (state['type'] != 'leader') or is_suspended:
                     c = False
                 else:
-                    state['commitIndex'] += 1
                     c = True
         if state['type'] == 'follower':
             (_, _, stub) = state['nodes'][state['leader_id']]
@@ -375,13 +389,9 @@ class Handler(pb2_grpc.RaftNodeServicer):
             return
 
         key = request.key
-        c = False
-        for i in range(1, state['commitIndex'] + 1):
-            entry = state['logs'][-i]['command'].split()
-            if entry[0] == key:
-                val = entry[1]
-                c = True
-                break
+        c = key in state['values']
+        if c:
+            val = state['values'][key]
         reply = {'cond': c, 'val': val}
         return pb2.ValConditionArg(**reply)
 

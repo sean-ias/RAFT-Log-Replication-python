@@ -52,7 +52,7 @@ message SetValArgs {
 }
 
 message GetValArg {
-        string key_val = 1;
+        string key = 1;
 }
 
 message ConditionArg {

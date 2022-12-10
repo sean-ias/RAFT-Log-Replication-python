@@ -345,7 +345,7 @@ class Handler(pb2_grpc.RaftNodeServicer):
             return
 
         (host, port, _) = state['nodes'][state['leader_id']]
-        reply = {'leader_id': state['leader_id'], 'leader_addr': f"{host}:{[port]}"}
+        reply = {'leader_id': state['leader_id'], 'leader_addr': f"{host} {port}"}
         return pb2.LeaderResp(**reply)
 
     def Suspend(self, request, context):
@@ -364,14 +364,15 @@ class Handler(pb2_grpc.RaftNodeServicer):
 
         key, val = request.key, request.val
         c = False
+        entry = {'term': state['term'], 'command': key + " " + val}
+        state['logs'].append(entry)
+        state['commitIndex'] += 1
         if state['type'] == 'leader':
-            entry = pb2.Entry(term=state['term'], command=key + " " + val)
-            state['logs'].append(entry)
-            if heartbeat_events[state['leader_id']].wait(timeout=0.5):
-                if (state['type'] != 'leader') or is_suspended:
-                    c = False
-                else:
-                    c = True
+            if state['commitIndex'] > state['lastApplied']:
+                state['lastApplied'] += 1
+                key, value = state['values'][state['lastApplied'] - 1].split(' ')
+                state['values'][key] = value
+                c = True
         if state['type'] == 'follower':
             (_, _, stub) = state['nodes'][state['leader_id']]
             try:

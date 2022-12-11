@@ -111,7 +111,7 @@ def finalize_election():
             state['leader_id'] = state['id']
             state['vote_count'] = 0
             state['voted_for_id'] = -1
-            state['nextIndex'] = dict([(id, state['lastApplied'] + 1) for id in state['nodes'].keys()])
+            state['nextIndex'] = dict([(id, state['commitIndex'] + 1) for id in state['nodes'].keys()])
             state['matchIndex'] = dict([(id, 0) for id in state['nodes'].keys()])
             start_heartbeats()
             print("Votes received")
@@ -136,11 +136,11 @@ def become_a_follower():
 #
 
 def apply():
-    key, value = state['values'][state['lastApplied'] - 1].split(' ')
+    key, value = state['logs'][state['lastApplied'] - 1].command.split(' ')
     state['values'][key] = value
 
 def check_last_applied():
-    if state['commitIndex'] > state['lastApplied']:
+    while state['commitIndex'] > state['lastApplied']:
         state['lastApplied'] = state['lastApplied'] + 1
         apply()
 
@@ -212,16 +212,17 @@ def election_timeout_thread():
             # if somehow we got here while being a leader,
             # then do nothing
 
-def check_max_index(N):
+def check_match_index(N):
     required_votes = (len(state['nodes'])//2) + 1
-    return sum(map(lambda x : x >= N, state['matchIndex'])) >= required_votes
+    return sum([v >= N for _, v in state['matchIndex'].items()]) >= required_votes
 
 def update_commit_index():
     for N in range(len(state['logs']), 0, -1):
         if N <= state['commitIndex']:
             break
-        if state['logs'][N - 1].term == state['term'] and check_max_index(N):
+        if check_match_index(N):
             state['commitIndex'] = N
+            check_last_applied()
             break
 
 def heartbeat_thread(id_to_request):
@@ -236,33 +237,31 @@ def heartbeat_thread(id_to_request):
                 ensure_connected(id_to_request)
                 (_, _, stub) = state['nodes'][id_to_request]
 
-                logs_send_succeeded = True
-                while logs_send_succeeded:
+                logs_send_succeeded = False
+                while not logs_send_succeeded:
                     log_entries = []
-                    if len(state['logs']) > state['nextIndex'][id_to_request]:
-                        log_entries = state['logs'][state['nextIndex'][id_to_request]:]
-                    # We need to check if our logs actually have something
-                    if len(state['logs']) == 0:
-                        prev_log_term = -1
-                    else:
-                        prev_log_term = state['logs'][-1].term
-                    # TODO:
-                    #  Check if in `prevLogIndex` we should have lastApplied, len(logs) or commitIndex
+                    start_log_index = state['nextIndex'][id_to_request]
+                    if len(state['logs']) >= start_log_index:
+                        log_entries = state['logs'][start_log_index - 1:]
+                    prev_log_index = start_log_index - 1
+                    prev_log_term = -1
+                    if 0 < prev_log_index <= len(state['logs']):
+                        prev_log_term = state['logs'][prev_log_index - 1].term
                     resp = stub.AppendEntries(
                         pb2.AppendEntriesArgs(
                             term=state['term'],
                             leaderId=state['id'],
-                            prevLogIndex=state['lastApplied'],
+                            prevLogIndex=prev_log_index,
                             prevLogTerm=prev_log_term,
                             entries=log_entries,
                             leaderCommit=state['commitIndex']), timeout=0.100)
-                    if len(log_entries) > 0:
-                        if resp.result:
-                            state['matchIndex'][id_to_request] = state['matchIndex'][id_to_request] + len(log_entries)
-                        elif resp.term == state['term']: # Verifying that failed NOT because of log inconsistency
+                    logs_send_succeeded = resp.result
+                    if logs_send_succeeded:
+                        state['matchIndex'][id_to_request] = len(state['logs'])
+                        state['nextIndex'][id_to_request] = len(state['logs']) + 1
+                    else:  # Verifying that failed NOT because of log inconsistency
+                        if state['nextIndex'][id_to_request] > 1:
                             state['nextIndex'][id_to_request] = state['nextIndex'][id_to_request] - 1
-                            # Skipping the next line to make a retry
-                    logs_send_succeeded = False
 
                 update_commit_index()
 
@@ -327,14 +326,13 @@ class Handler(pb2_grpc.RaftNodeServicer):
             if state['term'] < request.term:
                 state['term'] = request.term
                 become_a_follower()
-            if state['term'] == request.term and \
-                    (len(state['logs']) == 0 or len(state['logs']) >= request.prevLogIndex):
-                # TODO: Double check if need to traverse through all of them
+            if state['term'] == request.term and len(state['logs']) >= request.prevLogIndex:
                 if len(state['logs']) > 0 and state['logs'][request.prevLogIndex - 1].term != request.prevLogTerm:
                     state['logs'] = state['logs'][0:request.prevLogIndex]
                 state['logs'] = state['logs'] + list(request.entries)
                 if state['commitIndex'] < request.leaderCommit:
                     state['commitIndex'] = min(request.leaderCommit, len(state['logs']))
+                    check_last_applied()
                 state['leader_id'] = request.leaderId
                 reply = {'result': True, 'term': state['term']}
             return pb2.ResultWithTerm(**reply)
@@ -364,16 +362,12 @@ class Handler(pb2_grpc.RaftNodeServicer):
 
         key, val = request.key, request.val
         c = False
-        entry = {'term': state['term'], 'command': key + " " + val}
-        state['logs'].append(entry)
-        state['commitIndex'] += 1
         if state['type'] == 'leader':
-            if state['commitIndex'] > state['lastApplied']:
-                state['lastApplied'] += 1
-                key, value = state['values'][state['lastApplied'] - 1].split(' ')
-                state['values'][key] = value
-                c = True
+            entry = pb2.Entry(term=state['term'], command=key + " " + val)
+            state['logs'].append(entry)
+            c = True
         if state['type'] == 'follower':
+            ensure_connected(state['leader_id'])
             (_, _, stub) = state['nodes'][state['leader_id']]
             try:
                 resp = stub.SetVal(pb2.SetValArgs(key=key, val=val))
@@ -390,10 +384,10 @@ class Handler(pb2_grpc.RaftNodeServicer):
             return
 
         key = request.key
-        c = key in state['values']
-        if c:
+        reply = {'cond': False, 'val': None}
+        if key in state['values']:
             val = state['values'][key]
-        reply = {'cond': c, 'val': val}
+            reply = {'cond': True, 'val': val}
         return pb2.ValConditionArg(**reply)
 
 def ensure_connected(id):

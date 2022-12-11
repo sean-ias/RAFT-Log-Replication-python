@@ -1,1 +1,3 @@
-python3 -m grpc_tools.protoc raft.proto --proto_path=. --python_out=. --grpc_python_out=.
+python -m grpc_tools.protoc raft.proto --proto_path=. --python_out=. --grpc_python_out=.
+
+ # state['logs'][N - 1].term == state['term']
